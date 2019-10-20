@@ -83,8 +83,49 @@ void mark_corners(image im, descriptor *d, int n)
 // returns: single row image of the filter.
 image make_1d_gaussian(float sigma)
 {
-    // TODO: optional, make separable 1d Gaussian.
-    return make_image(1,1,1);
+    int size = round(sigma * 6);
+    size = (size%2==1) ? size : size+1;
+
+    image ga_f = make_image(size, 1, 1);
+    int centre = size/2;
+    for(int x=0; x<ga_f.w; x++) {
+        float s2 = sigma*sigma;
+        float r2 = (x-centre)*(x-centre);
+        float v = 1.0/(TWOPI*s2) * exp(-r2/(2*s2));
+        set_pixel(ga_f, x, 0, 0, v);
+    }
+
+    l1_normalize(ga_f);
+    return ga_f;
+}
+
+image make_1d_gaussian_axis(float sigma, int axis)
+{
+    int size = round(sigma * 6);
+    size = (size%2==1) ? size : size+1;
+
+    image ga_f;
+    if (axis == 0) {
+        ga_f = make_image(size, 1, 1);
+    }
+    else {
+        ga_f = make_image(1, size, 1);
+    }
+    int centre = size/2;
+    for(int x = 0; x < size; x++) {
+        float s2 = sigma*sigma;
+        float r2 = (x-centre)*(x-centre);
+        float v = 1.0/(TWOPI*s2) * exp(-r2/(2*s2));
+        if(axis == 0) {
+            set_pixel(ga_f, x, 0, 0, v);
+        }
+        else {
+            set_pixel(ga_f, 0, x, 0, v);
+        }
+    }
+
+    l1_normalize(ga_f);
+    return ga_f;
 }
 
 // Smooths an image using separable Gaussian filter.
@@ -93,16 +134,12 @@ image make_1d_gaussian(float sigma)
 // returns: smoothed image.
 image smooth_image(image im, float sigma)
 {
-    if(1){
-        image g = make_gaussian_filter(sigma);
-        image s = convolve_image(im, g, 1);
-        free_image(g);
-        return s;
-    } else {
-        // TODO: optional, use two convolutions with 1d gaussian filter.
-        // If you implement, disable the above if check.
-        return copy_image(im);
-    }
+    image gauss_x = make_1d_gaussian_axis(sigma, 0);
+    image gauss_y = make_1d_gaussian_axis(sigma, 1);
+    image s = convolve_image(convolve_image(im, gauss_x, 1), gauss_y, 1);
+    free_image(gauss_x);
+    free_image(gauss_y);
+    return s;
 }
 
 // Calculate the structure matrix of an image.
@@ -143,8 +180,19 @@ image structure_matrix(image im, float sigma)
 image cornerness_response(image S)
 {
     image R = make_image(S.w, S.h, 1);
-    // TODO: fill in R, "cornerness" for each pixel using the structure matrix.
     // We'll use formulation det(S) - alpha * trace(S)^2, alpha = .06.
+    float alpha = 0.06f;
+    float Ix, Iy, IxIy, det, trace, resp;
+    for (int w = 0; w < R.w; w++)
+        for (int h = 0; h < R.h; h++) {
+            Ix = get_pixel(S, w, h, 0);
+            Iy = get_pixel(S, w, h, 1);
+            IxIy = get_pixel(S, w, h, 2);
+            det = Ix*Iy - IxIy*IxIy;
+            trace = Ix + Iy;
+            resp = det - alpha * trace*trace;
+            set_pixel(R, w, h, 0, resp);
+        }
     return R;
 }
 
@@ -160,6 +208,28 @@ image nms_image(image im, int w)
     //     for neighbors within w:
     //         if neighbor response greater than pixel response:
     //             set response to be very low (I use -999999 [why not 0??])
+
+    int side = (2*w + 1);
+    int half = (w % 2 == 1) ? ((side - 1) / 2) : (side / 2);
+    int isGreater = 0;
+    float pixel, w_pixel;
+    for (int x = 0; x < r.w; x++)
+        for (int y = 0; y < r.h; y++) {
+
+            isGreater = 0;
+            for(int w_x = 0; w_x < side; w_x++) {
+                for(int w_y = 0; w_y < side; w_y++) {
+                    pixel = get_pixel(im, x, y, 0);
+                    w_pixel = get_pixel(im, x + w_x - half, y + w_y - half, 0);
+                    if (w_pixel > pixel) {
+                        isGreater = 1;
+                        set_pixel(r, x, y, 0, -999999);
+                        break;
+                    }
+                }
+                if(isGreater) break;
+            }
+        }
     return r;
 }
 
@@ -183,17 +253,83 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
 
 
     //TODO: count number of responses over threshold
-    int count = 1; // change this
+    int count = 0;
+
+    int size_column = Rnms.w; 
+    int size_row = Rnms.h;
+    int size_channel = Rnms.c;
+    float pixel = 0.0f;
+
+    for(int k = 0; k < size_channel; ++k){
+        for(int j = 0; j < size_row; ++j){
+            for(int i = 0; i < size_column; ++i){
+
+                pixel = get_pixel(Rnms, i, j, k);
+                if (pixel > thresh){
+
+                    count++;
+                }
+
+            }
+        }
+    }
 
     
+    image *sobel = sobel_image(im);
+    image grad_image = copy_image(sobel[1]);
+    feature_normalize(grad_image);
+    int size_column_descriptor = 5;
+    int size_row_descriptor = 5;
+    int mid_size_descriptor = (int)(size_row_descriptor/2); 
+    int map_descriptor_x = 0;
+    int map_descriptor_y = 0;
+    float descriptor_pixel = 0.0f;
+
     *n = count; // <- set *n equal to number of corners in image.
     descriptor *d = calloc(count, sizeof(descriptor));
     //TODO: fill in array *d with descriptors of corners, use describe_index.
+    int descriptor_count = 0;
 
+    for(int k = 0; k < size_channel; ++k){
+        for(int j = 0; j < size_row; ++j){
+            for(int i = 0; i < size_column; ++i){
+
+                pixel = get_pixel(Rnms, i, j, k);
+                if ((pixel > thresh) && (descriptor_count < count)){
+
+                    /* Option 1*/
+                    d[descriptor_count].p.x = i;
+                    d[descriptor_count].p.y = j;
+                    d[descriptor_count].n = size_column_descriptor*size_row_descriptor ;
+                    d[descriptor_count].data = calloc(size_column_descriptor*size_row_descriptor , sizeof(float));
+
+                    for(int l = 0; l < size_row_descriptor; ++l){
+                        for(int m = 0; m < size_column_descriptor; ++m){
+
+                            map_descriptor_x = i - mid_size_descriptor +m;
+                            map_descriptor_y = j - mid_size_descriptor +l;
+                            descriptor_pixel = get_pixel(grad_image, map_descriptor_x, map_descriptor_y, 0);
+                            d[descriptor_count].data[m+(l*size_row_descriptor)] = descriptor_pixel;
+                        }
+                    }
+                    /* Option 1*/
+
+                    /*Option 2
+                    d[descriptor_count] = describe_index(im, (i+(j*size_column)));
+                    /*Option 2*/
+
+                    descriptor_count++;
+                }
+
+            }
+        }
+    }
 
     free_image(S);
     free_image(R);
     free_image(Rnms);
+    free_image(grad_image);
+    free(sobel);
     return d;
 }
 
