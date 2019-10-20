@@ -27,14 +27,14 @@ image nn_resize(image im, int w, int h)
 
 float bilinear_interpolate(image im, float x, float y, int c)
 {
-	float v1 = get_pixel(im, (int)x, (int)y, c);
-   	float v2 = get_pixel(im, (int)x + 1, (int)y, c);
-   	float v3 = get_pixel(im, (int)x, (int)y + 1, c);
-   	float v4 = get_pixel(im, (int)x + 1, (int)y + 1, c);
-   	float d1 = x - (int)x;
-   	float d2 = 1.0 - d1;
-   	float d3 = y - (int)y;
-   	float d4 = 1.0 - d3;
+	float v1 = get_pixel(im, floorf(x), floorf(y), c);
+   	float v2 = get_pixel(im, floorf(x), ceilf(y), c);
+   	float v3 = get_pixel(im, ceilf(x), floorf(y), c);
+   	float v4 = get_pixel(im, ceilf(x) + 1, ceilf(y), c);
+   	float d1 = y - floorf(y);
+   	float d2 = ceilf(y) - y;
+   	float d3 = x - floorf(x);
+   	float d4 = ceilf(x) - x;
    	float q1 = v1 * d2 + v2 * d1;
    	float q2 = v3 * d2 + v4 * d1;
    	return q1 * d4 + q2 * d3;

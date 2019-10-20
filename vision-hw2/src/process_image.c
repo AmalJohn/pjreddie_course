@@ -8,18 +8,18 @@ float get_pixel(image im, int x, int y, int c)
 {
     if (x < 0) x = 0;
     if (y < 0) y = 0;
-    if (x > im.w) x = im.w - 1;
-    if (y > im.h) y = im.h - 1;
+    if (c < 0) c = 0;
+    if (x > im.w - 1) x = im.w - 1;
+    if (y > im.h - 1) y = im.h - 1;
+    if (c > im.c - 1) c = im.c - 1;
     float pixel = im.data[im.w*im.h*c + im.w*y + x];
     return pixel;
 }
 
 void set_pixel(image im, int x, int y, int c, float v)
 {
-    if (x < 0) x = 0;
-    if (y < 0) y = 0;
-    if (x > im.w) x = im.w - 1;
-    if (y > im.h) y = im.h - 1;
+    if (x < 0 || x > im.w) return;
+    if (y < 0 || y > im.h) return;
     im.data[im.w*im.h*c + im.w*y + x] = v;
 }
 
@@ -52,11 +52,14 @@ void shift_image(image im, int c, float v)
 
 void clamp_image(image im)
 {
-    int im_size = im.w*im.h*im.c;
-	for (unsigned int i = 0; i < im_size; i++) {
-		if (im.data[i] < 0) im.data[i] = 0;
-		if (im.data[i] > 1) im.data[i] = 1;
-	}
+    float pixel;
+    for (int c = 0; c < im.c; c++)
+        for (int w = 0; w < im.w; w++)
+            for (int h = 0; h < im.h; h++) {
+                pixel = get_pixel(im, w, h, c);
+                if (pixel < 0) set_pixel(im, w, h, c, 0);
+                if (pixel > 1) set_pixel(im, w, h, c, 1);
+            }
 }
 
 

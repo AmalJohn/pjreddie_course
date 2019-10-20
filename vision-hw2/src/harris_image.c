@@ -113,7 +113,27 @@ image smooth_image(image im, float sigma)
 image structure_matrix(image im, float sigma)
 {
     image S = make_image(im.w, im.h, 3);
-    // TODO: calculate structure matrix for im.
+    
+    image gx_filter = make_gx_filter();
+    image gy_filter = make_gy_filter();
+	image Ix = convolve_image(im, gx_filter, 0);
+	image Iy = convolve_image(im, gy_filter, 0);
+
+	float Ix_pixel, Iy_pixel;
+	for (int h = 0; h < S.h; h++)
+		for (int w = 0; w < S.w; w++) {
+			Ix_pixel = get_pixel(Ix, w, h, 0);
+			Iy_pixel = get_pixel(Iy, w, h, 0);
+            //if (Ix_pixel > 1 || Ix_pixel < 0 || Iy_pixel > 1 || Iy_pixel < 0) printf("True ");
+			set_pixel(S, w, h, 0, (Ix_pixel*Ix_pixel));
+			set_pixel(S, w, h, 1, (Iy_pixel*Iy_pixel));
+			set_pixel(S, w, h, 2, (Ix_pixel*Iy_pixel));
+		}
+
+    S = smooth_image(S, sigma);
+
+    free_image(Ix);
+    free_image(Iy);
     return S;
 }
 
