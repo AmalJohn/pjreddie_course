@@ -278,12 +278,6 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
     image *sobel = sobel_image(im);
     image grad_image = copy_image(sobel[1]);
     feature_normalize(grad_image);
-    int size_column_descriptor = 5;
-    int size_row_descriptor = 5;
-    int mid_size_descriptor = (int)(size_row_descriptor/2); 
-    int map_descriptor_x = 0;
-    int map_descriptor_y = 0;
-    float descriptor_pixel = 0.0f;
 
     *n = count; // <- set *n equal to number of corners in image.
     descriptor *d = calloc(count, sizeof(descriptor));
@@ -297,26 +291,7 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
                 pixel = get_pixel(Rnms, i, j, k);
                 if ((pixel > thresh) && (descriptor_count < count)){
 
-                    /* Option 1*/
-                    d[descriptor_count].p.x = i;
-                    d[descriptor_count].p.y = j;
-                    d[descriptor_count].n = size_column_descriptor*size_row_descriptor ;
-                    d[descriptor_count].data = calloc(size_column_descriptor*size_row_descriptor , sizeof(float));
-
-                    for(int l = 0; l < size_row_descriptor; ++l){
-                        for(int m = 0; m < size_column_descriptor; ++m){
-
-                            map_descriptor_x = i - mid_size_descriptor +m;
-                            map_descriptor_y = j - mid_size_descriptor +l;
-                            descriptor_pixel = get_pixel(grad_image, map_descriptor_x, map_descriptor_y, 0);
-                            d[descriptor_count].data[m+(l*size_row_descriptor)] = descriptor_pixel;
-                        }
-                    }
-                    /* Option 1*/
-
-                    /*Option 2
                     d[descriptor_count] = describe_index(im, (i+(j*size_column)));
-                    /*Option 2*/
 
                     descriptor_count++;
                 }
